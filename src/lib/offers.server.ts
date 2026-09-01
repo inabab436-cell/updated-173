@@ -68,6 +68,12 @@ export interface OffersSnapshot {
   live: OfferRow[];
   /** Ended offers with only a recency bucket attached. */
   past: Array<{ bucket: PastBucket }>;
+  /**
+   * Offers still running, but finished FOR THIS CUSTOMER (once per customer,
+   * already benefited). They are kept visible — with their state — so the agent
+   * knows it from the first message instead of discovering it after quoting.
+   */
+  consumed?: OfferRow[];
 }
 
 function num(v: unknown): number {
