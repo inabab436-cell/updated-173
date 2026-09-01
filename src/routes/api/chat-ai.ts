@@ -1423,15 +1423,24 @@ export const Route = createFileRoute("/api/chat-ai")({
 
           // OFFERS & DISCOUNTS — read live for this exact message, so an offer
           // that expired one second ago is already gone from the agent's view.
+          // Identity of this customer, so a "once per customer" offer that
+          // they already used is not offered to them again. Redemptions are
+          // recorded under whichever identity the paid order carried
+          // (account id, else phone, else conversation), so all of them are
+          // checked — one missing key would silently revive the offer.
+          // Declared here so the PROMPT snapshot and the PRICING tool judge the
+          // same customer: a mismatch is what made the agent quote a discount
+          // and then take it back.
+          const offerCustomerKeys = [
+            customer?.id ? `c:${customer.id}` : "",
+            customer?.phone ? `p:${String(customer.phone).trim()}` : "",
+            convo?.id ? `v:${convo.id}` : "",
+          ].filter(Boolean);
+
           const offersPromise = (async () => {
             try {
               const { loadOffers } = await import("@/lib/offers.server");
-              // Identity of this customer, so a "once per customer" offer that
-              // they already used is not offered to them again. Redemptions are
-              // recorded under whichever identity the paid order carried
-              // (account id, else phone, else conversation), so all of them are
-              // checked — one missing key would silently revive the offer.
-              const offerCustomerKeys = [
+              const _unusedOfferKeys = [
                 customer?.id ? `c:${customer.id}` : "",
                 customer?.phone ? `p:${String(customer.phone).trim()}` : "",
                 convo?.id ? `v:${convo.id}` : "",
@@ -2193,7 +2202,7 @@ export const Route = createFileRoute("/api/chat-ai")({
               );
               const consumed = await consumedOfferIds(supabase as any, {
                 conversationId: conversation_id,
-                customerKeys: conversation_id ? [`v:${String(conversation_id)}`] : [],
+                customerKeys: offerCustomerKeys,
               });
               quotableOffers = dropConsumedOnceOffers(liveOffers, consumed);
             } catch {
