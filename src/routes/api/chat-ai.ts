@@ -1440,11 +1440,6 @@ export const Route = createFileRoute("/api/chat-ai")({
           const offersPromise = (async () => {
             try {
               const { loadOffers } = await import("@/lib/offers.server");
-              const _unusedOfferKeys = [
-                customer?.id ? `c:${customer.id}` : "",
-                customer?.phone ? `p:${String(customer.phone).trim()}` : "",
-                convo?.id ? `v:${convo.id}` : "",
-              ].filter(Boolean);
               return await loadOffers(
                 supabase,
                 merchantUserId,
