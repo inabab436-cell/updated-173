@@ -249,6 +249,9 @@ export async function loadOffers(
       past: rows
         .filter((o) => hasEnded(o, now))
         .map((o) => ({ bucket: pastBucket(o, now) })),
+      consumed: rows.filter(
+        (o) => isLive(o, now) && !isAvailableForCustomer(o, used.has(o.id)),
+      ),
     };
   } catch {
     return empty;
