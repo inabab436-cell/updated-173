@@ -68,6 +68,12 @@ export interface OffersSnapshot {
   live: OfferRow[];
   /** Ended offers with only a recency bucket attached. */
   past: Array<{ bucket: PastBucket }>;
+  /**
+   * Offers still running, but finished FOR THIS CUSTOMER (once per customer,
+   * already benefited). They are kept visible — with their state — so the agent
+   * knows it from the first message instead of discovering it after quoting.
+   */
+  consumed?: OfferRow[];
 }
 
 function num(v: unknown): number {
@@ -243,6 +249,9 @@ export async function loadOffers(
       past: rows
         .filter((o) => hasEnded(o, now))
         .map((o) => ({ bucket: pastBucket(o, now) })),
+      consumed: rows.filter(
+        (o) => isLive(o, now) && !isAvailableForCustomer(o, used.has(o.id)),
+      ),
     };
   } catch {
     return empty;
@@ -270,7 +279,7 @@ export function buildOffersBlock(
 
   if (snapshot.live.length === 0) {
     lines.push(
-      "لا يوجد أي عرض أو خصم شغّال دلوقتي. أي سعر تقوله هو السعر الأساسي بدون أي خصم، وممنوع منعًا باتًا تلمّح لوجود عرض أو خصم أو تعد بواحد جاي.",
+      "لا يوجد أي عرض أو خصم متاح لهذا العميل دلوقتي. أي سعر تقوله هو السعر الأساسي بدون أي خصم، وممنوع منعًا باتًا تلمّح لوجود عرض أو خصم أو تعد بواحد جاي.",
     );
   } else {
     for (const o of snapshot.live) {
@@ -363,6 +372,26 @@ export function buildOffersBlock(
     }
   }
 
+  // Offers still running, but finished FOR THIS CUSTOMER. Known from the first
+  // message, so the agent never quotes a discount it will have to take back.
+  const consumed = (snapshot.consumed ?? []).filter(
+    (o) => o.scope === "all" || (o.product_id && productNameById.get(o.product_id)),
+  );
+  if (consumed.length) {
+    for (const o of consumed) {
+      const where =
+        o.scope === "all"
+          ? "كل المنتجات"
+          : `${productNameById.get(o.product_id!)} (product_id: ${o.product_id})`;
+      lines.push(
+        `- عرض «${o.title || "عرض"}» (${discountText(o, currency)} على ${where}) شغّال في المتجر، لكنه «مرة واحدة لكل عميل» وهذا العميل استفاد منه بالفعل — انتهى بالنسبة له.`,
+      );
+    }
+    lines.push(
+      "حالة هذه العروض معروفة من الآن: ممنوع تحسبها أو تعد بها أو تقول سعر بها لهذا العميل، وممنوع تحسب الخصم الأول ثم تتراجع. " +
+        "أول ما يسأل عنها أو يطلبها في طلب جديد، قول من أول مرة إنها مرة واحدة لكل عميل وإنه استفاد منها قبل كده، والسعر الحالي بدون خصم — بجملة قصيرة محترمة بدون اعتذار متكرر ولا وعد باستثناء، وكمّل الطلب طبيعي.",
+    );
+  }
 
   if (snapshot.past.length) {
     const b = snapshot.past
